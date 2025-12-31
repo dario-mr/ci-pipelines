@@ -35,6 +35,6 @@ jobs:
           call: >-
             build-and-push
             --source .
-            --docker-username "$DOCKERHUB_USERNAME"
+            --docker-username env://DOCKERHUB_USERNAME
             --docker-password env://DOCKERHUB_TOKEN
             --image-name "${{ inputs.image-name }}"
