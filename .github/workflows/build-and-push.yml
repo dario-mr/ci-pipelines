@@ -1,0 +1,47 @@
+name: Build and push image to Docker Hub
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: "Docker image name, including tag"
+        required: true
+        type: string
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-24.04-arm
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Checkout pipeline repo (Dagger module)
+        uses: actions/checkout@v4
+        with:
+          repository: dario-mr/ci-pipelines
+          path: ci-pipelines
+          ref: v1
+
+      - name: Run "Build and Push" with Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          version: "0.19.8"
+          module: ./ci-pipelines
+          call: >-
+            build-and-push
+            --source .
+            --docker-username "$DOCKERHUB_USERNAME"
+            --docker-password env://DOCKERHUB_TOKEN
+            --image-name "${{ inputs.image-name }}"
