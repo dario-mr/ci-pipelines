@@ -27,7 +27,6 @@ jobs:
       - name: Run "Build and Push" with Dagger
         uses: dagger/dagger-for-github@v8.2.0
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
           version: "0.19.8"
@@ -35,6 +34,6 @@ jobs:
           call: >-
             build-and-push
             --source .
-            --docker-username env://DOCKERHUB_USERNAME
+            --docker-username "${{ secrets.DOCKERHUB_USERNAME }}"
             --docker-password env://DOCKERHUB_TOKEN
             --image-name "${{ inputs.image-name }}"
