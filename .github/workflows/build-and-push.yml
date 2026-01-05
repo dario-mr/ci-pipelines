@@ -21,7 +21,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout app repo
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Run "Build and Push" with Dagger

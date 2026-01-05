@@ -1,0 +1,117 @@
+name: Java coverage
+
+on:
+  workflow_call:
+
+jobs:
+  coverage-comment:
+    runs-on: ubuntu-24.04-arm
+
+    permissions:
+      contents: read
+      pull-requests: write  # needed to comment on PR
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Dagger CLI
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | DAGGER_VERSION=0.19.8 BIN_DIR=$HOME/.local/bin sh
+          echo "$HOME/.dagger/bin" >> "$GITHUB_PATH"
+
+      - name: Run Dagger coverage and save XML
+        run: |
+          dagger call \
+            --mod github.com/dario-mr/ci-pipelines@main \
+            coverage-xml \
+            --source . > jacoco.xml
+
+      - name: Generate coverage summary markdown
+        id: summary
+        run: |
+          python << 'PY'
+          import xml.etree.ElementTree as ET
+
+          def get_line_counter(elem):
+            for c in elem.findall('counter'):
+              if c.get('type') == 'LINE':
+                missed = int(c.get('missed'))
+                covered = int(c.get('covered'))
+                return missed, covered
+            return 0, 0
+
+          tree = ET.parse('jacoco.xml')
+          root = tree.getroot()
+
+          # Total coverage (bundle-level)
+          missed_total, covered_total = get_line_counter(root)
+          total_lines = missed_total + covered_total
+          total_pct = 0.0 if total_lines == 0 else covered_total * 100.0 / total_lines
+
+          # Per-package coverage
+          packages = []
+          for pkg in root.findall('package'):
+            pm, pc = get_line_counter(pkg)
+            tl = pm + pc
+            if tl == 0:
+              continue
+            pct = pc * 100.0 / tl
+            name = (pkg.get('name') or '').replace('/', '.')
+            packages.append((name, pct, pc, tl))
+
+          packages.sort(key=lambda x: x[0])
+
+          with open('coverage.md', 'w') as f:
+            f.write("<!-- ci-pipelines:coverage-comment -->\n")
+            f.write("## ☂️ Code coverage\n\n")
+            f.write(f"**Total line coverage:** {total_pct:.2f}% ({covered_total}/{total_lines} lines)\n\n")
+            f.write("| Package | Line coverage |\n")
+            f.write("| ------- | ------------- |\n")
+            for name, pct, covered, total in packages:
+              f.write(f"| `{name}` | {pct:.2f}% ({covered}/{total}) |\n")
+          PY
+
+      - name: Create or update PR coverage comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('coverage.md', 'utf8');
+            const marker = "<!-- ci-pipelines:coverage-comment -->";
+
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.setFailed("This workflow must be run on pull_request.");
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const issue_number = pr.number;
+
+            // List all comments on the PR
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number }
+            );
+
+            // Find an existing comment with our marker
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }

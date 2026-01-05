@@ -1,11 +1,12 @@
 import dagger
-from dagger import dag, object_type, function, Platform
+from dagger import dag, object_type, function
 
 
 @object_type
 class Ci:
   DOCKER_REGISTRY = "docker.io"
   PLATFORM_LINUX_ARM64 = "linux/arm64"
+  JAVA_21_IMAGE = "maven:3.9.9-eclipse-temurin-21-jammy"
 
   @function
   async def test(self, source: dagger.Directory) -> str:
@@ -13,7 +14,7 @@ class Ci:
 
     container = (
       dag.container()
-      .from_("maven:3.9.9-eclipse-temurin-21-jammy")
+      .from_(self.JAVA_21_IMAGE)
       .with_mounted_cache("/root/.m2", maven_cache)
       .with_mounted_directory(
           "/app",
@@ -48,3 +49,25 @@ class Ci:
     # authenticate and push image to docker hub
     authed = image.with_registry_auth(self.DOCKER_REGISTRY, docker_username, docker_password)
     return await authed.publish(f"{self.DOCKER_REGISTRY}/{image_name}")
+
+  @function
+  async def coverage_xml(self, source: dagger.Directory) -> str:
+    maven_cache = dag.cache_volume("maven-cache")
+
+    container = (
+      dag.container()
+      .from_(self.JAVA_21_IMAGE)
+      .with_mounted_cache("/root/.m2", maven_cache)
+      .with_mounted_directory(
+          "/app",
+          source
+          .without_directory(".git")
+          .without_directory(".dagger")
+      )
+      .with_workdir("/app")
+      .with_exec(["mvn", "--batch-mode", "verify", "-Pcoverage"])
+    )
+
+    # default jacoco output location
+    xml_file = container.file("/app/target/site/jacoco/jacoco.xml")
+    return await xml_file.contents()
