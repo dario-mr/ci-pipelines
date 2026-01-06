@@ -259,3 +259,5 @@ class Ci:
     # default jacoco output location
     xml_file = container.file("/app/target/site/jacoco/jacoco.xml")
     return await xml_file.contents()
+
+# todo move to helper files? too messy
