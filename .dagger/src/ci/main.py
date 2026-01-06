@@ -133,10 +133,18 @@ class Ci:
 
     if base_source is not None and changed_files.strip():
       base_files: Dict[str, Tuple[int, int]] = {}
+      base_total_pct: Optional[float] = None
       try:
         base_xml = await self.coverage_xml(base_source)
         base_root = ET.fromstring(base_xml)
         base_files = file_line_counters(base_root)
+
+        base_missed_total, base_covered_total = get_line_counter(base_root)
+        base_total_lines = base_missed_total + base_covered_total
+        base_total_pct = (
+          0.0 if base_total_lines == 0 else base_covered_total * 100.0 / base_total_lines
+        )
+
         base_available = True
       except (dagger.QueryError, ET.ParseError):
         base_available = False
@@ -153,9 +161,6 @@ class Ci:
           continue
         changed_keys.append((path, key))
 
-      head_missed = head_covered = 0
-      base_missed = base_covered = 0
-      not_in_report: List[str] = []
       rows: List[str] = []
 
       for original_path, key in changed_keys:
@@ -163,40 +168,22 @@ class Ci:
         base_counts = base_files.get(key) if base_available else None
 
         if head_counts is None:
-          not_in_report.append(original_path)
           continue
 
         head_m, head_c = head_counts
         head_t = head_m + head_c
         head_p = 0.0 if head_t == 0 else head_c * 100.0 / head_t
 
-        base_label = "n/a"
-        delta_label = "n/a"
         if base_counts is not None:
           base_m, base_c = base_counts
           base_t = base_m + base_c
           base_p = 0.0 if base_t == 0 else base_c * 100.0 / base_t
-          base_label = f"{base_p:.2f}% ({base_c}/{base_t})"
           delta_label = f"{(head_p - base_p):+.2f}%"
-          base_missed += base_m
-          base_covered += base_c
+          coverage_label = f"{head_p:.2f}% ({delta_label})"
+        else:
+          coverage_label = f"{head_p:.2f}% (n/a)"
 
-        head_missed += head_m
-        head_covered += head_c
-
-        rows.append(
-            f"| `{original_path}` | {base_label} | {head_p:.2f}% ({head_c}/{head_t}) | {delta_label} |"
-        )
-
-      head_total_changed = head_missed + head_covered
-      head_pct_changed = (
-        0.0 if head_total_changed == 0 else head_covered * 100.0 / head_total_changed
-      )
-
-      base_total_changed = base_missed + base_covered
-      base_pct_changed = (
-        0.0 if base_total_changed == 0 else base_covered * 100.0 / base_total_changed
-      )
+        rows.append(f"| `{original_path}` | {coverage_label} |")
 
       max_rows = 50
       omitted_rows = 0
@@ -204,28 +191,22 @@ class Ci:
         omitted_rows = len(rows) - max_rows
         rows = rows[:max_rows]
 
+      total_delta_label = "n/a"
+      if base_available and base_total_pct is not None:
+        total_delta_label = f"{(total_pct - base_total_pct):+.2f}%"
+
       markdown_lines += [
         "",
         "## 🔍 Changed files coverage",
         "",
-        f"**HEAD (changed files) line coverage:** {head_pct_changed:.2f}% ({head_covered}/{head_total_changed} lines)",
+        f"Total coverage: {total_pct:.2f}% ({total_delta_label})",
+        "",
       ]
-
-      if base_available:
-        markdown_lines.append(
-            f"**BASE (changed files) line coverage:** {base_pct_changed:.2f}% ({base_covered}/{base_total_changed} lines)"
-        )
-      else:
-        markdown_lines.append(
-            "**BASE (changed files) line coverage:** n/a (coverage not available on base ref)"
-        )
-
-      markdown_lines.append("")
 
       if rows:
         markdown_lines += [
-          "| File | Base | Head | Δ |",
-          "| ---- | ---- | ---- | - |",
+          "| File | Line coverage |",
+          "| ---- | ------------- |",
           *rows,
         ]
 
@@ -233,13 +214,6 @@ class Ci:
         markdown_lines += [
           "",
           f"_Table truncated: {omitted_rows} more files omitted._",
-        ]
-
-      if not_in_report:
-        markdown_lines += [
-          "",
-          "Files changed in PR but not present in JaCoCo report:",
-          *[f"- `{p}`" for p in not_in_report],
         ]
 
     return "\n".join(markdown_lines) + "\n"
