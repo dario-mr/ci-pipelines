@@ -7,6 +7,11 @@ on:
         description: "Docker image name, including tag"
         required: true
         type: string
+      ci-pipelines-ref:
+        description: "Ref (branch/tag/SHA) of ci-pipelines to use for the Dagger module"
+        required: false
+        default: "main"
+        type: string
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -30,7 +35,7 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
           version: "0.19.8"
-          module: github.com/dario-mr/ci-pipelines@main
+          module: github.com/dario-mr/ci-pipelines@${{ inputs.ci-pipelines-ref }}
           call: >-
             build-and-push
             --source .

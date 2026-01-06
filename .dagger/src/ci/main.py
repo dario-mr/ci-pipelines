@@ -1,3 +1,5 @@
+import xml.etree.ElementTree as ET
+
 import dagger
 from dagger import dag, object_type, function
 
@@ -51,6 +53,50 @@ class Ci:
     return await authed.publish(f"{self.DOCKER_REGISTRY}/{image_name}")
 
   @function
+  async def coverage_markdown(self, source: dagger.Directory) -> str:
+    def get_line_counter(elem: ET.Element) -> tuple[int, int]:
+      for counter in elem.findall("counter"):
+        if counter.get("type") == "LINE":
+          missed = int(counter.get("missed") or 0)
+          covered = int(counter.get("covered") or 0)
+          return missed, covered
+      return 0, 0
+
+    xml = await self.coverage_xml(source)
+    root = ET.fromstring(xml)
+
+    missed_total, covered_total = get_line_counter(root)
+    total_lines = missed_total + covered_total
+    total_pct = 0.0 if total_lines == 0 else covered_total * 100.0 / total_lines
+
+    packages: list[tuple[str, float, int, int]] = []
+    for pkg in root.findall("package"):
+      missed, covered = get_line_counter(pkg)
+      total = missed + covered
+      if total == 0:
+        continue
+
+      name = (pkg.get("name") or "").replace("/", ".")
+      pct = covered * 100.0 / total
+      packages.append((name, pct, covered, total))
+
+    packages.sort(key=lambda p: p[0])
+
+    markdown_lines: list[str] = [
+      "<!-- ci-pipelines:coverage-comment -->",
+      "## ☂️ Code coverage",
+      "",
+      f"**Total line coverage:** {total_pct:.2f}% ({covered_total}/{total_lines} lines)",
+      "",
+      "| Package | Line coverage |",
+      "| ------- | ------------- |",
+    ]
+
+    for name, pct, covered, total in packages:
+      markdown_lines.append(f"| `{name}` | {pct:.2f}% ({covered}/{total}) |")
+
+    return "\n".join(markdown_lines) + "\n"
+
   async def coverage_xml(self, source: dagger.Directory) -> str:
     maven_cache = dag.cache_volume("maven-cache")
 
