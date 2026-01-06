@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+from typing import Dict, List, Optional, Tuple
 
 import dagger
 from dagger import dag, object_type, function
@@ -53,8 +54,13 @@ class Ci:
     return await authed.publish(f"{self.DOCKER_REGISTRY}/{image_name}")
 
   @function
-  async def coverage_markdown(self, source: dagger.Directory) -> str:
-    def get_line_counter(elem: ET.Element) -> tuple[int, int]:
+  async def coverage_markdown(
+      self,
+      source: dagger.Directory,
+      base_source: Optional[dagger.Directory] = None,
+      changed_files: str = "",
+  ) -> str:
+    def get_line_counter(elem: ET.Element) -> Tuple[int, int]:
       for counter in elem.findall("counter"):
         if counter.get("type") == "LINE":
           missed = int(counter.get("missed") or 0)
@@ -62,15 +68,45 @@ class Ci:
           return missed, covered
       return 0, 0
 
-    xml = await self.coverage_xml(source)
-    root = ET.fromstring(xml)
+    def file_line_counters(root: ET.Element) -> Dict[str, Tuple[int, int]]:
+      counters: Dict[str, Tuple[int, int]] = {}
+      for pkg in root.findall("package"):
+        pkg_name = pkg.get("name") or ""
+        for sourcefile in pkg.findall("sourcefile"):
+          filename = sourcefile.get("name") or ""
+          if not filename:
+            continue
+          missed, covered = get_line_counter(sourcefile)
+          key = f"{pkg_name}/{filename}" if pkg_name else filename
+          counters[key] = (missed, covered)
+      return counters
 
-    missed_total, covered_total = get_line_counter(root)
+    def changed_path_to_jacoco_key(path: str) -> Optional[str]:
+      normalized = path.strip().lstrip("./")
+      if not normalized:
+        return None
+
+      markers = (
+        "src/main/java/",
+        "src/main/kotlin/",
+        "src/test/java/",
+        "src/test/kotlin/",
+      )
+      for marker in markers:
+        idx = normalized.find(marker)
+        if idx != -1:
+          return normalized[idx + len(marker):]
+      return None
+
+    head_xml = await self.coverage_xml(source)
+    head_root = ET.fromstring(head_xml)
+
+    missed_total, covered_total = get_line_counter(head_root)
     total_lines = missed_total + covered_total
     total_pct = 0.0 if total_lines == 0 else covered_total * 100.0 / total_lines
 
-    packages: list[tuple[str, float, int, int]] = []
-    for pkg in root.findall("package"):
+    packages: List[Tuple[str, float, int, int]] = []
+    for pkg in head_root.findall("package"):
       missed, covered = get_line_counter(pkg)
       total = missed + covered
       if total == 0:
@@ -82,7 +118,7 @@ class Ci:
 
     packages.sort(key=lambda p: p[0])
 
-    markdown_lines: list[str] = [
+    markdown_lines: List[str] = [
       "<!-- ci-pipelines:coverage-comment -->",
       "## ☂️ Code coverage",
       "",
@@ -94,6 +130,117 @@ class Ci:
 
     for name, pct, covered, total in packages:
       markdown_lines.append(f"| `{name}` | {pct:.2f}% ({covered}/{total}) |")
+
+    if base_source is not None and changed_files.strip():
+      base_files: Dict[str, Tuple[int, int]] = {}
+      try:
+        base_xml = await self.coverage_xml(base_source)
+        base_root = ET.fromstring(base_xml)
+        base_files = file_line_counters(base_root)
+        base_available = True
+      except (dagger.QueryError, ET.ParseError):
+        base_available = False
+
+      head_files = file_line_counters(head_root)
+
+      changed = [line.strip() for line in changed_files.splitlines() if line.strip()]
+      changed_keys: List[Tuple[str, str]] = []
+      ignored: List[str] = []
+      for path in changed:
+        key = changed_path_to_jacoco_key(path)
+        if key is None:
+          ignored.append(path)
+          continue
+        changed_keys.append((path, key))
+
+      head_missed = head_covered = 0
+      base_missed = base_covered = 0
+      not_in_report: List[str] = []
+      rows: List[str] = []
+
+      for original_path, key in changed_keys:
+        head_counts = head_files.get(key)
+        base_counts = base_files.get(key) if base_available else None
+
+        if head_counts is None:
+          not_in_report.append(original_path)
+          continue
+
+        head_m, head_c = head_counts
+        head_t = head_m + head_c
+        head_p = 0.0 if head_t == 0 else head_c * 100.0 / head_t
+
+        base_label = "n/a"
+        delta_label = "n/a"
+        if base_counts is not None:
+          base_m, base_c = base_counts
+          base_t = base_m + base_c
+          base_p = 0.0 if base_t == 0 else base_c * 100.0 / base_t
+          base_label = f"{base_p:.2f}% ({base_c}/{base_t})"
+          delta_label = f"{(head_p - base_p):+.2f}%"
+          base_missed += base_m
+          base_covered += base_c
+
+        head_missed += head_m
+        head_covered += head_c
+
+        rows.append(
+            f"| `{original_path}` | {base_label} | {head_p:.2f}% ({head_c}/{head_t}) | {delta_label} |"
+        )
+
+      head_total_changed = head_missed + head_covered
+      head_pct_changed = (
+        0.0 if head_total_changed == 0 else head_covered * 100.0 / head_total_changed
+      )
+
+      base_total_changed = base_missed + base_covered
+      base_pct_changed = (
+        0.0 if base_total_changed == 0 else base_covered * 100.0 / base_total_changed
+      )
+
+      max_rows = 50
+      omitted_rows = 0
+      if len(rows) > max_rows:
+        omitted_rows = len(rows) - max_rows
+        rows = rows[:max_rows]
+
+      markdown_lines += [
+        "",
+        "## 🔍 Changed files coverage",
+        "",
+        f"**HEAD (changed files) line coverage:** {head_pct_changed:.2f}% ({head_covered}/{head_total_changed} lines)",
+      ]
+
+      if base_available:
+        markdown_lines.append(
+            f"**BASE (changed files) line coverage:** {base_pct_changed:.2f}% ({base_covered}/{base_total_changed} lines)"
+        )
+      else:
+        markdown_lines.append(
+            "**BASE (changed files) line coverage:** n/a (coverage not available on base ref)"
+        )
+
+      markdown_lines.append("")
+
+      if rows:
+        markdown_lines += [
+          "| File | Base | Head | Δ |",
+          "| ---- | ---- | ---- | - |",
+          *rows,
+        ]
+
+      if omitted_rows:
+        markdown_lines += [
+          "",
+          f"_Table truncated: {omitted_rows} more files omitted._",
+        ]
+
+      if not_in_report:
+        markdown_lines += [
+          "",
+          "Files changed in PR but not present in JaCoCo report:",
+          *[f"- `{p}`" for p in not_in_report],
+        ]
 
     return "\n".join(markdown_lines) + "\n"
 

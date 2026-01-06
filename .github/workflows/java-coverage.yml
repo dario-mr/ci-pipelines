@@ -23,7 +23,7 @@ jobs:
       pull-requests: write  # needed to comment on PR
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repo (PR HEAD)
         uses: actions/checkout@v4
 
       - name: Install Dagger CLI
@@ -31,12 +31,57 @@ jobs:
         with:
           version: "0.19.8"
 
+      - name: Fetch PR base SHA and changed files
+        if: inputs.pull-request-number != 0
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            const { owner, repo } = context.repo;
+            const pull_number = Number('${{ inputs.pull-request-number }}');
+            if (!pull_number) {
+              core.setFailed('Missing inputs.pull-request-number.');
+              return;
+            }
+
+            const pr = await github.rest.pulls.get({ owner, repo, pull_number });
+            core.setOutput('base_sha', pr.data.base.sha);
+
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              { owner, repo, pull_number, per_page: 100 }
+            );
+
+            fs.writeFileSync(
+              'changed_files.txt',
+              files.map(f => f.filename).join('\n') + '\n'
+            );
+
+      - name: Checkout repo (PR BASE)
+        if: inputs.pull-request-number != 0
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.base_sha }}
+          path: base
+
       - name: Generate coverage summary markdown
         run: |
-          dagger call \
-            --mod github.com/dario-mr/ci-pipelines@${{ inputs.ci-pipelines-ref }} \
-            coverage-markdown \
-            --source . > coverage.md
+          if [ "${{ inputs.pull-request-number }}" != "0" ]; then
+            dagger call \
+              --mod github.com/dario-mr/ci-pipelines@${{ inputs.ci-pipelines-ref }} \
+              coverage-markdown \
+              --source . \
+              --base-source base \
+              --changed-files "$(cat changed_files.txt)" > coverage.md
+          else
+            dagger call \
+              --mod github.com/dario-mr/ci-pipelines@${{ inputs.ci-pipelines-ref }} \
+              coverage-markdown \
+              --source . > coverage.md
+          fi
 
       - name: Create or update PR coverage comment
         if: inputs.pull-request-number != 0
