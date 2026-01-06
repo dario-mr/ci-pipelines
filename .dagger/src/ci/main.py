@@ -120,8 +120,9 @@ class Ci:
 
     markdown_lines: List[str] = [
       "<!-- ci-pipelines:coverage-comment -->",
-      "## ☂️ Code coverage",
-      "",
+    ]
+
+    code_coverage_lines: List[str] = [
       f"**Total line coverage:** {total_pct:.2f}% ({covered_total}/{total_lines} lines)",
       "",
       "| Package | Line coverage |",
@@ -129,7 +130,7 @@ class Ci:
     ]
 
     for name, pct, covered, total in packages:
-      markdown_lines.append(f"| `{name}` | {pct:.2f}% ({covered}/{total}) |")
+      code_coverage_lines.append(f"| `{name}` | {pct:.2f}% ({covered}/{total}) |")
 
     if base_source is not None and changed_files.strip():
       base_files: Dict[str, Tuple[int, int]] = {}
@@ -215,6 +216,18 @@ class Ci:
           "",
           f"_Table truncated: {omitted_rows} more files omitted._",
         ]
+
+    markdown_lines += [
+      "",
+      "## ☂️ Coverage details",
+      "",
+      "<details>",
+      "<summary>Show details</summary>",
+      "",
+      *code_coverage_lines,
+      "",
+      "</details>",
+    ]
 
     return "\n".join(markdown_lines) + "\n"
 
