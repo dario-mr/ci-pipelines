@@ -179,8 +179,11 @@ class Ci:
           base_m, base_c = base_counts
           base_t = base_m + base_c
           base_p = 0.0 if base_t == 0 else base_c * 100.0 / base_t
-          delta_label = f"{(head_p - base_p):+.2f}%"
-          coverage_label = f"{head_p:.2f}% ({delta_label})"
+
+          delta = head_p - base_p
+          delta_label = f"{delta:+.2f}%"
+          delta_indicator = "🟢" if delta >= 0 else "🔴"
+          coverage_label = f"{head_p:.2f}% ({delta_indicator} {delta_label})"
         else:
           coverage_label = f"{head_p:.2f}% (n/a)"
 
@@ -193,14 +196,19 @@ class Ci:
         rows = rows[:max_rows]
 
       total_delta_label = "n/a"
+      total_delta_indicator = ""
       if base_available and base_total_pct is not None:
-        total_delta_label = f"{(total_pct - base_total_pct):+.2f}%"
+        total_delta = total_pct - base_total_pct
+        total_delta_label = f"{total_delta:+.2f}%"
+        total_delta_indicator = "🟢" if total_delta >= 0 else "🔴"
+
+      total_delta_prefix = f"{total_delta_indicator} " if total_delta_indicator else ""
 
       markdown_lines += [
         "",
         "## 🔍 Changed files coverage",
         "",
-        f"Total coverage: {total_pct:.2f}% ({total_delta_label})",
+        f"Total coverage: {total_pct:.2f}% ({total_delta_prefix}{total_delta_label})",
         "",
       ]
 
