@@ -12,9 +12,11 @@ class Ci:
   DOCKER_REGISTRY = "docker.io"
   PLATFORM_LINUX_ARM64 = "linux/arm64"
   JAVA_21_IMAGE = "maven:3.9.9-eclipse-temurin-21-jammy"
+  REDIS_IMAGE = "redis:7-alpine"
+  REDIS_PORT = 6379
 
   @function
-  async def test(self, source: dagger.Directory) -> str:
+  async def test(self, source: dagger.Directory, with_redis: bool = False) -> str:
     maven_cache = dag.cache_volume("maven-cache")
 
     container = (
@@ -28,8 +30,12 @@ class Ci:
           .without_directory(".dagger")
       )
       .with_workdir("/app")
-      .with_exec(["mvn", "--batch-mode", "test"])
     )
+
+    if with_redis:
+      container = self.with_redis_service(container)
+
+    container = container.with_exec(["mvn", "--batch-mode", "test"])
 
     return await container.stdout()
 
@@ -40,9 +46,10 @@ class Ci:
       docker_username: str,
       docker_password: dagger.Secret,
       image_name: str,
+      with_redis: bool = False,
   ) -> str:
     # run tests
-    await self.test(source)
+    await self.test(source, with_redis=with_redis)
 
     # build docker image
     platform = dagger.Platform(self.PLATFORM_LINUX_ARM64)
@@ -61,15 +68,16 @@ class Ci:
       source: dagger.Directory,
       base_source: Optional[dagger.Directory] = None,
       changed_files: str = "",
+      with_redis: bool = False,
   ) -> str:
-    head_xml = await self.coverage_xml(source)
+    head_xml = await self.coverage_xml(source, with_redis=with_redis)
 
     base_requested = base_source is not None
 
     base_xml: Optional[str] = None
     if base_source is not None and changed_files.strip():
       try:
-        base_xml = await self.coverage_xml(base_source)
+        base_xml = await self.coverage_xml(base_source, with_redis=with_redis)
         ET.fromstring(base_xml)
       except (dagger.QueryError, ET.ParseError):
         base_xml = None
@@ -81,7 +89,7 @@ class Ci:
         changed_files=changed_files,
     )
 
-  async def coverage_xml(self, source: dagger.Directory) -> str:
+  async def coverage_xml(self, source: dagger.Directory, with_redis: bool = False) -> str:
     maven_cache = dag.cache_volume("maven-cache")
 
     container = (
@@ -95,9 +103,28 @@ class Ci:
           .without_directory(".dagger")
       )
       .with_workdir("/app")
-      .with_exec(["mvn", "--batch-mode", "verify", "-Pcoverage"])
     )
+
+    if with_redis:
+      container = self.with_redis_service(container)
+
+    container = container.with_exec(["mvn", "--batch-mode", "verify", "-Pcoverage"])
 
     # default jacoco output location
     xml_file = container.file("/app/target/site/jacoco/jacoco.xml")
     return await xml_file.contents()
+
+  def with_redis_service(self, container):
+    redis = (
+      dag.container()
+      .from_(self.REDIS_IMAGE)
+      .with_exposed_port(self.REDIS_PORT)
+      .as_service()
+    )
+
+    return (
+      container
+      .with_service_binding("redis", redis)
+      .with_env_variable("SPRING_DATA_REDIS_HOST", "redis")
+      .with_env_variable("SPRING_DATA_REDIS_PORT", str(self.REDIS_PORT))
+    )
