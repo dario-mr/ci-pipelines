@@ -19,23 +19,12 @@ class Ci:
   async def test(self, source: dagger.Directory, with_redis: bool = False) -> str:
     maven_cache = dag.cache_volume("maven-cache")
 
-    container = (
-      dag.container()
-      .from_(self.JAVA_21_IMAGE)
-      .with_mounted_cache("/root/.m2", maven_cache)
-      .with_mounted_directory(
-          "/app",
-          source
-          .without_directory(".git")
-          .without_directory(".dagger")
-      )
-      .with_workdir("/app")
-    )
+    container = self.build_java_container(maven_cache, source)
 
     if with_redis:
       container = self.with_redis_service(container)
 
-    container = container.with_exec(["mvn", "--batch-mode", "test"])
+    container = container.with_exec(["mvn", "--batch-mode", "test", "-DexcludedGroups=requires-docker"])
 
     return await container.stdout()
 
@@ -92,7 +81,19 @@ class Ci:
   async def coverage_xml(self, source: dagger.Directory, with_redis: bool = False) -> str:
     maven_cache = dag.cache_volume("maven-cache")
 
-    container = (
+    container = self.build_java_container(maven_cache, source)
+
+    if with_redis:
+      container = self.with_redis_service(container)
+
+    container = container.with_exec(["mvn", "--batch-mode", "verify", "-Pcoverage", "-DexcludedGroups=requires-docker"])
+
+    # default jacoco output location
+    xml_file = container.file("/app/target/site/jacoco/jacoco.xml")
+    return await xml_file.contents()
+
+  def build_java_container(self, maven_cache, source):
+    return (
       dag.container()
       .from_(self.JAVA_21_IMAGE)
       .with_mounted_cache("/root/.m2", maven_cache)
@@ -104,15 +105,6 @@ class Ci:
       )
       .with_workdir("/app")
     )
-
-    if with_redis:
-      container = self.with_redis_service(container)
-
-    container = container.with_exec(["mvn", "--batch-mode", "verify", "-Pcoverage"])
-
-    # default jacoco output location
-    xml_file = container.file("/app/target/site/jacoco/jacoco.xml")
-    return await xml_file.contents()
 
   def with_redis_service(self, container):
     redis = (
