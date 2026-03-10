@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      with-postgres:
+        description: "Start a PostgreSQL service container for tests"
+        required: false
+        default: false
+        type: boolean
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -48,3 +53,4 @@ jobs:
             --docker-password env://DOCKERHUB_TOKEN
             --image-name "${{ inputs.image-name }}"
             ${{ inputs.with-redis && '--with-redis' || '' }}
+            ${{ inputs.with-postgres && '--with-postgres' || '' }}

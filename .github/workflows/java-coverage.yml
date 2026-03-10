@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      with-postgres:
+        description: "Start a PostgreSQL service container for tests"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   coverage-comment:
@@ -78,7 +83,8 @@ jobs:
             --source . \
             --base-source base \
             --changed-files "$(cat changed_files.txt)" \
-            ${{ inputs.with-redis && '--with-redis' || '' }} > coverage.md
+            ${{ inputs.with-redis && '--with-redis' || '' }}
+            ${{ inputs.with-postgres && '--with-postgres' || '' }} > coverage.md
 
       - name: Create or update PR coverage comment
         uses: actions/github-script@v7
