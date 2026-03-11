@@ -27,6 +27,9 @@ jobs:
   coverage-comment:
     if: inputs.pull-request-number != 0
     runs-on: ubuntu-24.04-arm
+    concurrency:
+      group: ci-pipelines-coverage-${{ github.repository }}-${{ inputs.pull-request-number }}
+      cancel-in-progress: true
 
     permissions:
       contents: read
