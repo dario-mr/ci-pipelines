@@ -19,6 +19,9 @@ The real CI logic — build, test, package, publish, etc. — lives in `Dagger` 
       - `pull_request`: `<pomVersion>-<shortSha>`
 - [build-and-push-node](.github/workflows/build-and-push-node.yml): Builds a Node frontend and
   pushes its image to Docker Hub
+    - tag rules:
+      - `push` to `main`: `<packageVersion>`
+      - `pull_request`: `<packageVersion>-<shortSha>`
 - [java-coverage](.github/workflows/java-coverage.yml): Generates a Java coverage summary for
   a pull request and posts/updates a PR comment
     - intended to be called from `pull_request` workflows
@@ -48,7 +51,7 @@ jobs:
   build-and-push-node:
     uses: dario-mr/ci-pipelines/.github/workflows/build-and-push-node.yml@main
     with:
-      image-name: dariomr8/frontend-app:latest
+      image-repo: dariomr8/frontend-app
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

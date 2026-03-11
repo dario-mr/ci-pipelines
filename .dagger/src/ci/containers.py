@@ -1,7 +1,7 @@
 import dagger
 from dagger import dag
 
-from .constants import JAVA_21_IMAGE, POSTGRES_IMAGE, POSTGRES_PORT, REDIS_IMAGE, REDIS_PORT
+from .constants import JAVA_21_IMAGE, NODE_24_IMAGE, POSTGRES_IMAGE, POSTGRES_PORT, REDIS_IMAGE, REDIS_PORT
 
 
 def build_java_container(source: dagger.Directory) -> dagger.Container:
@@ -10,6 +10,22 @@ def build_java_container(source: dagger.Directory) -> dagger.Container:
     dag.container()
     .from_(JAVA_21_IMAGE)
     .with_mounted_cache("/root/.m2", maven_cache)
+    .with_mounted_directory(
+        "/app",
+        source
+        .without_directory(".git")
+        .without_directory(".dagger")
+    )
+    .with_workdir("/app")
+  )
+
+
+def build_node_container(source: dagger.Directory) -> dagger.Container:
+  npm_cache = dag.cache_volume("npm-cache")
+  return (
+    dag.container()
+    .from_(NODE_24_IMAGE)
+    .with_mounted_cache("/root/.npm", npm_cache)
     .with_mounted_directory(
         "/app",
         source

@@ -6,7 +6,7 @@ from dagger import function, object_type
 from .coverage import render_coverage_markdown
 from .images import publish_image
 from .java import compute_java_tag, generate_coverage_xml, read_pom_version, run_java_tests
-from .node import node_build
+from .node import compute_node_tag, node_build, read_package_version
 
 
 @object_type
@@ -48,10 +48,16 @@ class Ci:
       source: dagger.Directory,
       docker_username: str,
       docker_password: dagger.Secret,
-      image_name: str,
+      image_repo: str,
+      event_name: str,
+      commit_sha: str,
       platforms: str,
   ) -> str:
     await node_build(source)
+
+    package_version = await read_package_version(source)
+    tag = compute_node_tag(event_name=event_name, commit_sha=commit_sha, package_version=package_version)
+    image_name = f"{image_repo}:{tag}"
 
     return await publish_image(
         source=source,

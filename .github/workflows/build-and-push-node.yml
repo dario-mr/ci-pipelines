@@ -3,8 +3,8 @@ name: Build and push Node image to Docker Hub
 on:
   workflow_call:
     inputs:
-      image-name:
-        description: "Docker image name, including tag"
+      image-repo:
+        description: "Docker image repository (without tag), e.g. dariomr8/frontend-app"
         required: true
         type: string
       ci-pipelines-ref:
@@ -54,5 +54,7 @@ jobs:
             --source . \
             --docker-username "${{ secrets.DOCKERHUB_USERNAME }}" \
             --docker-password env://DOCKERHUB_TOKEN \
-            --image-name "${{ inputs.image-name }}" \
+            --image-repo "${{ inputs.image-repo }}" \
+            --event-name "${{ github.event_name }}" \
+            --commit-sha "${{ github.sha }}" \
             --platforms "${{ inputs.platforms }}"
