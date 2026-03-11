@@ -37,10 +37,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkout ci-pipelines (self)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: dario-mr/ci-pipelines
           ref: ${{ inputs.ci-pipelines-ref }}
