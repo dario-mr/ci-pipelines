@@ -10,6 +10,6 @@ runs:
   using: composite
   steps:
     - name: Install Dagger CLI
-      uses: dagger/dagger-for-github@v8.2.0
+      uses: dagger/dagger-for-github@v8.4.0
       with:
         version: ${{ inputs.version }}
