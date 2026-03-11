@@ -49,14 +49,14 @@ Install Dagger locally with Homebrew:
 
 ```bash
 brew update
-brew install dagger/tap/dagger
+brew install dagger
 ```
 
 Upgrade an existing local Dagger installation:
 
 ```bash
 brew update
-brew upgrade dagger/tap/dagger
+brew upgrade dagger
 ```
 
 Verify your local version:
