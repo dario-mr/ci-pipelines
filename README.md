@@ -43,6 +43,37 @@ jobs:
       pull-request-number: ${{ github.event.pull_request.number }}
 ```
 
+## Updating Dagger
+
+Install Dagger locally with Homebrew:
+
+```bash
+brew update
+brew install dagger/tap/dagger
+```
+
+Upgrade an existing local Dagger installation:
+
+```bash
+brew update
+brew upgrade dagger/tap/dagger
+```
+
+Verify your local version:
+
+```bash
+dagger version
+```
+
+After bumping `engineVersion` in `dagger.json`, run:
+
+```bash
+dagger develop
+```
+
+Since this repository workflows pin a Dagger CLI version, update those pins in
+`.github/workflows/*.yml` to match the `engineVersion`.
+
 ## References
 
 - [Dagger Documentation](https://docs.dagger.io/)

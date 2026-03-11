@@ -44,7 +44,7 @@ jobs:
         env:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
-          version: "0.19.8"
+          version: "0.20.1"
           module: github.com/dario-mr/ci-pipelines@${{ inputs.ci-pipelines-ref }}
           call: >-
             build-and-push
