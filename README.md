@@ -1,11 +1,11 @@
 # CI Pipelines
 
-This repository contains my shared `Dagger` CI pipelines, with only a thin `GitHub Actions` wrapper
-to trigger it.
+This repository contains my shared [Dagger](https://docs.dagger.io/) CI pipelines, with only a thin
+`GitHub Actions` wrapper to trigger them.
 
 ## How it works
 
-Each repository has a very small workflow file that simply calls the reusable workflow here, passing
+Each repository has a small workflow file that simply calls the reusable workflow here, passing
 any required inputs (like image name) and secrets.
 
 The real CI logic — build, test, package, publish, etc. — lives in `Dagger` code in this repo.
@@ -60,36 +60,23 @@ jobs:
 
 ## Updating Dagger
 
-Install Dagger locally with Homebrew:
+### Install Dagger locally
 
 ```bash
 brew update
-brew install dagger
+brew install dagger/tap/dagger
 ```
 
-Upgrade an existing local Dagger installation:
+### Upgrade an existing local Dagger installation
+
+Bump `engineVersion` in [dagger.json](dagger.json)
+(see [Dagger release page](https://github.com/dagger/dagger/releases)), then run:
 
 ```bash
 brew update
-brew upgrade dagger
-```
-
-Verify your local version:
-
-```bash
-dagger version
-```
-
-After bumping `engineVersion` in `dagger.json`, run:
-
-```bash
+brew upgrade dagger/tap/dagger
 dagger develop
 ```
 
-Since this repository workflows pin a Dagger CLI version, update those pins in
-`.github/workflows/*.yml` to match the `engineVersion`.
-
-## References
-
-- [Dagger Documentation](https://docs.dagger.io/)
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+Update the "setup dagger" action version
+in [action.yml](.github/actions/setup-dagger/action.yml) to match [dagger.json](dagger.json).

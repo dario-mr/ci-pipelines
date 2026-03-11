@@ -1,0 +1,15 @@
+name: Install the Dagger CLI
+
+inputs:
+  version:
+    description: Dagger CLI version to install
+    required: false
+    default: "0.20.1"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Dagger CLI
+      uses: dagger/dagger-for-github@v8.2.0
+      with:
+        version: ${{ inputs.version }}
