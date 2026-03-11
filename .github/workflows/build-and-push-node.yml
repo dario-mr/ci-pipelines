@@ -12,6 +12,11 @@ on:
         required: false
         default: "main"
         type: string
+      platforms:
+        description: "Target image platforms, comma separated"
+        required: false
+        default: "linux/arm64"
+        type: string
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -49,4 +54,5 @@ jobs:
             --source . \
             --docker-username "${{ secrets.DOCKERHUB_USERNAME }}" \
             --docker-password env://DOCKERHUB_TOKEN \
-            --image-name "${{ inputs.image-name }}"
+            --image-name "${{ inputs.image-name }}" \
+            --platforms "${{ inputs.platforms }}"

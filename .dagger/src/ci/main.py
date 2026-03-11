@@ -10,7 +10,6 @@ from .coverage import render_coverage_markdown
 @object_type
 class Ci:
   DOCKER_REGISTRY = "docker.io"
-  PLATFORM_LINUX_ARM64 = "linux/arm64"
   JAVA_21_IMAGE = "maven:3.9.9-eclipse-temurin-21-jammy"
   NODE_24_IMAGE = "node:24-alpine"
   REDIS_IMAGE = "redis:7-alpine"
@@ -41,22 +40,20 @@ class Ci:
       docker_username: str,
       docker_password: dagger.Secret,
       image_name: str,
+      platforms: str,
       with_redis: bool = False,
       with_postgres: bool = False,
   ) -> str:
     # run tests
     await self.test(source, with_redis=with_redis, with_postgres=with_postgres)
 
-    # build docker image
-    platform = dagger.Platform(self.PLATFORM_LINUX_ARM64)
-    image = source.docker_build(
-        dockerfile="Dockerfile",
-        platform=platform,
+    return await self.publish_image(
+        source=source,
+        docker_username=docker_username,
+        docker_password=docker_password,
+        image_name=image_name,
+        platforms=platforms,
     )
-
-    # authenticate and push image to docker hub
-    authed = image.with_registry_auth(self.DOCKER_REGISTRY, docker_username, docker_password)
-    return await authed.publish(f"{self.DOCKER_REGISTRY}/{image_name}")
 
   @function
   async def node_build(self, source: dagger.Directory) -> str:
@@ -86,20 +83,18 @@ class Ci:
       docker_username: str,
       docker_password: dagger.Secret,
       image_name: str,
+      platforms: str,
   ) -> str:
     # run frontend build
     await self.node_build(source)
 
-    # build docker image
-    platform = dagger.Platform(self.PLATFORM_LINUX_ARM64)
-    image = source.docker_build(
-        dockerfile="Dockerfile",
-        platform=platform,
+    return await self.publish_image(
+        source=source,
+        docker_username=docker_username,
+        docker_password=docker_password,
+        image_name=image_name,
+        platforms=platforms,
     )
-
-    # authenticate and push image to docker hub
-    authed = image.with_registry_auth(self.DOCKER_REGISTRY, docker_username, docker_password)
-    return await authed.publish(f"{self.DOCKER_REGISTRY}/{image_name}")
 
   @function
   async def coverage_markdown(
@@ -159,6 +154,40 @@ class Ci:
       )
       .with_workdir("/app")
     )
+
+  async def publish_image(
+      self,
+      source: dagger.Directory,
+      docker_username: str,
+      docker_password: dagger.Secret,
+      image_name: str,
+      platforms: str,
+  ) -> str:
+    platform_values = self.resolve_platforms(platforms)
+    built_images = [
+      source.docker_build(
+          dockerfile="Dockerfile",
+          platform=platform,
+      )
+      for platform in platform_values
+    ]
+    authed_images = [
+      image.with_registry_auth(self.DOCKER_REGISTRY, docker_username, docker_password)
+      for image in built_images
+    ]
+
+    return await authed_images[0].publish(
+        f"{self.DOCKER_REGISTRY}/{image_name}",
+        platform_variants=authed_images[1:] if len(authed_images) > 1 else None,
+    )
+
+  @staticmethod
+  def resolve_platforms(platforms: str) -> list[dagger.Platform]:
+    platform_values = [value.strip() for value in platforms.split(",") if value.strip()]
+    if not platform_values:
+      raise ValueError("platforms must be a non-empty platform string, e.g. linux/arm64")
+
+    return [dagger.Platform(platform) for platform in platform_values]
 
   def with_redis_service(self, container):
     redis = (
