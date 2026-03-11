@@ -12,6 +12,7 @@ class Ci:
   DOCKER_REGISTRY = "docker.io"
   PLATFORM_LINUX_ARM64 = "linux/arm64"
   JAVA_21_IMAGE = "maven:3.9.9-eclipse-temurin-21-jammy"
+  NODE_24_IMAGE = "node:24-alpine"
   REDIS_IMAGE = "redis:7-alpine"
   REDIS_PORT = 6379
   POSTGRES_IMAGE = "postgres:16-alpine"
@@ -45,6 +46,49 @@ class Ci:
   ) -> str:
     # run tests
     await self.test(source, with_redis=with_redis, with_postgres=with_postgres)
+
+    # build docker image
+    platform = dagger.Platform(self.PLATFORM_LINUX_ARM64)
+    image = source.docker_build(
+        dockerfile="Dockerfile",
+        platform=platform,
+    )
+
+    # authenticate and push image to docker hub
+    authed = image.with_registry_auth(self.DOCKER_REGISTRY, docker_username, docker_password)
+    return await authed.publish(f"{self.DOCKER_REGISTRY}/{image_name}")
+
+  @function
+  async def node_build(self, source: dagger.Directory) -> str:
+    npm_cache = dag.cache_volume("npm-cache")
+
+    container = (
+      dag.container()
+      .from_(self.NODE_24_IMAGE)
+      .with_mounted_cache("/root/.npm", npm_cache)
+      .with_mounted_directory(
+          "/app",
+          source
+          .without_directory(".git")
+          .without_directory(".dagger")
+      )
+      .with_workdir("/app")
+      .with_exec(["npm", "ci"])
+      .with_exec(["npm", "run", "build"])
+    )
+
+    return await container.stdout()
+
+  @function
+  async def node_build_and_push(
+      self,
+      source: dagger.Directory,
+      docker_username: str,
+      docker_password: dagger.Secret,
+      image_name: str,
+  ) -> str:
+    # run frontend build
+    await self.node_build(source)
 
     # build docker image
     platform = dagger.Platform(self.PLATFORM_LINUX_ARM64)

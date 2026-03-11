@@ -12,8 +12,10 @@ The real CI logic — build, test, package, publish, etc. — lives in `Dagger` 
 
 ## Workflows
 
-- [build-and-push](.github/workflows/build-and-push.yml): Builds a container image with Dagger
-  and pushes it to Docker Hub
+- [build-and-push](.github/workflows/build-and-push.yml): Builds a java package and
+  pushes its image to Docker Hub
+- [build-and-push-node](.github/workflows/build-and-push-node.yml): Builds a Node frontend and
+  pushes its image to Docker Hub
 - [java-coverage](.github/workflows/java-coverage.yml): Generates a Java coverage summary for
   a pull request and posts/updates a PR comment
     - intended to be called from `pull_request` workflows
@@ -22,13 +24,26 @@ The real CI logic — build, test, package, publish, etc. — lives in `Dagger` 
 ## Usage
 
 ```yaml
-# Build and push 
+# Build and push (Java app)
 
 jobs:
   build-and-push:
     uses: dario-mr/ci-pipelines/.github/workflows/build-and-push.yml@main
     with:
       image-name: dariomr8/app:latest
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+```
+
+```yaml
+# Build and push (Node frontend)
+
+jobs:
+  build-and-push:
+    uses: dario-mr/ci-pipelines/.github/workflows/build-and-push-node.yml@main
+    with:
+      image-name: dariomr8/frontend-app:latest
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

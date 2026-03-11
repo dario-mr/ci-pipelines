@@ -1,0 +1,44 @@
+name: Build and push Node image to Docker Hub
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: "Docker image name, including tag"
+        required: true
+        type: string
+      ci-pipelines-ref:
+        description: "Ref (branch/tag/SHA) of ci-pipelines to use for the Dagger module"
+        required: false
+        default: "main"
+        type: string
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-24.04-arm
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run "Node Build and Push" with Dagger
+        uses: dagger/dagger-for-github@v8.2.0
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          version: "0.20.1"
+          module: github.com/dario-mr/ci-pipelines@${{ inputs.ci-pipelines-ref }}
+          call: >-
+            node-build-and-push
+            --source .
+            --docker-username "${{ secrets.DOCKERHUB_USERNAME }}"
+            --docker-password env://DOCKERHUB_TOKEN
+            --image-name "${{ inputs.image-name }}"
