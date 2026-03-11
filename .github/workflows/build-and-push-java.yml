@@ -1,10 +1,10 @@
-name: Build and push image to Docker Hub
+name: Build and push Java image to Docker Hub
 
 on:
   workflow_call:
     inputs:
-      image-name:
-        description: "Docker image name, including tag"
+      image-repo:
+        description: "Docker image repository (without tag), e.g. dariomr8/app"
         required: true
         type: string
       ci-pipelines-ref:
@@ -60,11 +60,13 @@ jobs:
         run: |
           dagger call \
             --mod github.com/dario-mr/ci-pipelines@${{ inputs.ci-pipelines-ref }} \
-            build-and-push \
+            build-and-push-java \
             --source . \
             --docker-username "${{ secrets.DOCKERHUB_USERNAME }}" \
             --docker-password env://DOCKERHUB_TOKEN \
-            --image-name "${{ inputs.image-name }}" \
+            --image-repo "${{ inputs.image-repo }}" \
+            --event-name "${{ github.event_name }}" \
+            --commit-sha "${{ github.sha }}" \
             --platforms "${{ inputs.platforms }}" \
             ${{ inputs.with-redis && '--with-redis' || '' }} \
             ${{ inputs.with-postgres && '--with-postgres' || '' }}

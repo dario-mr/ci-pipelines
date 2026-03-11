@@ -34,18 +34,24 @@ class Ci:
     return await container.stdout()
 
   @function
-  async def build_and_push(
+  async def build_and_push_java(
       self,
       source: dagger.Directory,
       docker_username: str,
       docker_password: dagger.Secret,
-      image_name: str,
+      image_repo: str,
+      event_name: str,
+      commit_sha: str,
       platforms: str,
       with_redis: bool = False,
       with_postgres: bool = False,
   ) -> str:
     # run tests
     await self.test(source, with_redis=with_redis, with_postgres=with_postgres)
+
+    pom_version = await self.read_pom_version(source)
+    tag = self.compute_java_tag(event_name=event_name, commit_sha=commit_sha, pom_version=pom_version)
+    image_name = f"{image_repo}:{tag}"
 
     return await self.publish_image(
         source=source,
@@ -155,6 +161,18 @@ class Ci:
       .with_workdir("/app")
     )
 
+  async def read_pom_version(self, source: dagger.Directory) -> str:
+    maven_cache = dag.cache_volume("maven-cache")
+    container = (
+      self.build_java_container(maven_cache, source)
+      .with_exec(["sh", "-lc", "mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n 1"])
+    )
+
+    version = (await container.stdout()).strip()
+    if not version:
+      raise ValueError("Could not resolve project.version from pom.xml")
+    return version
+
   async def publish_image(
       self,
       source: dagger.Directory,
@@ -188,6 +206,13 @@ class Ci:
       raise ValueError("platforms must be a non-empty platform string, e.g. linux/arm64")
 
     return [dagger.Platform(platform) for platform in platform_values]
+
+  @staticmethod
+  def compute_java_tag(event_name: str, commit_sha: str, pom_version: str) -> str:
+    if event_name == "pull_request":
+      short_sha = commit_sha.strip()[:7]
+      return f"{pom_version}-{short_sha}"
+    return pom_version
 
   def with_redis_service(self, container):
     redis = (

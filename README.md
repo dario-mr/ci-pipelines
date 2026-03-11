@@ -6,14 +6,17 @@ This repository contains my shared [Dagger](https://docs.dagger.io/) CI pipeline
 ## How it works
 
 Each repository has a small workflow file that simply calls the reusable workflow here, passing
-any required inputs (like image name) and secrets.
+required inputs (like image repository) and secrets.
 
 The real CI logic — build, test, package, publish, etc. — lives in `Dagger` code in this repo.
 
 ## Workflows
 
-- [build-and-push](.github/workflows/build-and-push.yml): Builds a java package and
+- [build-and-push-java](.github/workflows/build-and-push-java.yml): Builds a java package and
   pushes its image to Docker Hub
+    - tag rules:
+      - `push` to `main`: `<pomVersion>`
+      - `pull_request`: `<pomVersion>-<shortSha>`
 - [build-and-push-node](.github/workflows/build-and-push-node.yml): Builds a Node frontend and
   pushes its image to Docker Hub
 - [java-coverage](.github/workflows/java-coverage.yml): Generates a Java coverage summary for
@@ -27,10 +30,12 @@ The real CI logic — build, test, package, publish, etc. — lives in `Dagger` 
 # Build and push (Java app)
 
 jobs:
-  build-and-push:
-    uses: dario-mr/ci-pipelines/.github/workflows/build-and-push.yml@main
+  build-and-push-java:
+    uses: dario-mr/ci-pipelines/.github/workflows/build-and-push-java.yml@main
     with:
-      image-name: dariomr8/app:latest
+      image-repo: dariomr8/app
+      # optional, comma-separated; defaults to linux/arm64
+      platforms: linux/arm64,linux/amd64
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -40,7 +45,7 @@ jobs:
 # Build and push (Node frontend)
 
 jobs:
-  build-and-push:
+  build-and-push-node:
     uses: dario-mr/ci-pipelines/.github/workflows/build-and-push-node.yml@main
     with:
       image-name: dariomr8/frontend-app:latest
