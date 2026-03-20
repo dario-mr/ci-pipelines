@@ -11,9 +11,6 @@ from .node import compute_node_tag, node_build, read_package_version
 
 @object_type
 class Ci:
-  @function
-  async def test(self, source: dagger.Directory, with_redis: bool = False, with_postgres: bool = False) -> str:
-    return await run_java_tests(source, with_redis=with_redis, with_postgres=with_postgres)
 
   @function
   async def build_and_push_java(
@@ -28,7 +25,7 @@ class Ci:
       with_redis: bool = False,
       with_postgres: bool = False,
   ) -> str:
-    await self.test(source, with_redis=with_redis, with_postgres=with_postgres)
+    await run_java_tests(source, with_redis=with_redis, with_postgres=with_postgres)
 
     pom_version = await read_pom_version(source)
     tag = compute_java_tag(event_name=event_name, commit_sha=commit_sha, pom_version=pom_version)

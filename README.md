@@ -15,13 +15,17 @@ The real CI logic — build, test, package, publish, etc. — lives in `Dagger` 
 - [build-and-push-java](.github/workflows/build-and-push-java.yml): Builds a java package and
   pushes its image to Docker Hub
     - tag rules:
-      - `push` to `main`: `<pomVersion>`
-      - `pull_request`: `<pomVersion>-<shortSha>`
+        - `push` to `main`: `<pomVersion>`
+        - `pull_request`: `<pomVersion>-<shortSha>`
 - [build-and-push-node](.github/workflows/build-and-push-node.yml): Builds a Node frontend and
   pushes its image to Docker Hub
     - tag rules:
-      - `push` to `main`: `<packageVersion>`
-      - `pull_request`: `<packageVersion>-<shortSha>`
+        - `push` to `main`: `<packageVersion>`
+        - `pull_request`: `<packageVersion>-<shortSha>`
+    - quality gates:
+        - runs `npm run lint` when a `lint` script exists
+        - runs `npm test` when a `test` script exists
+        - runs `npm run test:e2e` when a `test:e2e` script exists
 - [java-coverage](.github/workflows/java-coverage.yml): Generates a Java coverage summary for
   a pull request and posts/updates a PR comment
     - intended to be called from `pull_request` workflows
@@ -88,3 +92,11 @@ dagger develop
 
 Update the "setup dagger" action version
 in [action.yml](.github/actions/setup-dagger/action.yml) to match [dagger.json](dagger.json).
+
+## Verify Python syntax
+
+From the repository root, you can sanity-check the Dagger Python module with:
+
+```bash
+python3 -m py_compile .dagger/src/ci/*.py
+```
