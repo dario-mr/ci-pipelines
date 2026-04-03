@@ -22,6 +22,7 @@ class Ci:
       event_name: str,
       commit_sha: str,
       platforms: str,
+      dockerfile: str = "Dockerfile",
       with_redis: bool = False,
       with_postgres: bool = False,
   ) -> str:
@@ -36,6 +37,7 @@ class Ci:
         docker_username=docker_username,
         docker_password=docker_password,
         image_name=image_name,
+        dockerfile=dockerfile,
         platforms=platforms,
     )
 

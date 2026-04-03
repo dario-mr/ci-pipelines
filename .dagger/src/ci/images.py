@@ -8,12 +8,13 @@ async def publish_image(
     docker_username: str,
     docker_password: dagger.Secret,
     image_name: str,
+    dockerfile: str,
     platforms: str,
 ) -> str:
   platform_values = _resolve_platforms(platforms)
   built_images = [
     source.docker_build(
-        dockerfile="Dockerfile",
+        dockerfile=dockerfile,
         platform=platform,
     )
     for platform in platform_values

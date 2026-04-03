@@ -17,6 +17,16 @@ on:
         required: false
         default: "linux/arm64"
         type: string
+      dockerfile:
+        description: "Dockerfile path relative to the repository root"
+        required: false
+        default: "Dockerfile"
+        type: string
+      runner-label:
+        description: "GitHub Actions runner label"
+        required: false
+        default: "ubuntu-24.04-arm"
+        type: string
       with-redis:
         description: "Start a Redis service container for tests"
         required: false
@@ -35,7 +45,7 @@ on:
 
 jobs:
   build_and_push:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ inputs.runner-label }}
 
     permissions:
       contents: read
@@ -67,6 +77,7 @@ jobs:
             --image-repo "${{ inputs.image-repo }}" \
             --event-name "${{ github.event_name }}" \
             --commit-sha "${{ github.sha }}" \
+            --dockerfile "${{ inputs.dockerfile }}" \
             --platforms "${{ inputs.platforms }}" \
             ${{ inputs.with-redis && '--with-redis' || '' }} \
             ${{ inputs.with-postgres && '--with-postgres' || '' }}
