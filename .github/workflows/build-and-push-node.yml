@@ -17,6 +17,16 @@ on:
         required: false
         default: "linux/arm64"
         type: string
+      dockerfile:
+        description: "Dockerfile path relative to the repository root"
+        required: false
+        default: "Dockerfile"
+        type: string
+      runner-label:
+        description: "GitHub Actions runner label"
+        required: false
+        default: "ubuntu-24.04-arm"
+        type: string
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -25,7 +35,7 @@ on:
 
 jobs:
   build_and_push:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ inputs.runner-label }}
 
     permissions:
       contents: read
@@ -57,4 +67,5 @@ jobs:
             --image-repo "${{ inputs.image-repo }}" \
             --event-name "${{ github.event_name }}" \
             --commit-sha "${{ github.sha }}" \
+            --dockerfile "${{ inputs.dockerfile }}" \
             --platforms "${{ inputs.platforms }}"

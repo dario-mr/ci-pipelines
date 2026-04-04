@@ -51,6 +51,7 @@ class Ci:
       event_name: str,
       commit_sha: str,
       platforms: str,
+      dockerfile: str = "Dockerfile",
   ) -> str:
     await node_build(source)
 
@@ -63,6 +64,7 @@ class Ci:
         docker_username=docker_username,
         docker_password=docker_password,
         image_name=image_name,
+        dockerfile=dockerfile,
         platforms=platforms,
     )
 
