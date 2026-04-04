@@ -52,6 +52,7 @@ async def _run_optional_playwright_tests(source: dagger.Directory) -> str:
   container = (
     build_playwright_container(source)
     .with_exec(["npm", "ci"])
+    .with_exec(["npx", "playwright", "install", "chromium"])
   )
   return await container.with_exec(["npm", "run", "test:e2e"]).stdout()
 
