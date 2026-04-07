@@ -2,7 +2,7 @@ import dagger
 from dagger import dag
 
 from .constants import (
-  JAVA_21_IMAGE,
+  JAVA_25_IMAGE,
   NODE_24_IMAGE,
   PLAYWRIGHT_IMAGE,
   POSTGRES_IMAGE,
@@ -16,7 +16,7 @@ def build_java_container(source: dagger.Directory) -> dagger.Container:
   maven_cache = dag.cache_volume("maven-cache")
   return (
     dag.container()
-    .from_(JAVA_21_IMAGE)
+    .from_(JAVA_25_IMAGE)
     .with_mounted_cache("/root/.m2", maven_cache)
     .with_mounted_directory(
         "/app",
